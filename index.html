@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo Workflow Editor</title>
+    <script src="https://cdn.jsdelivr.net/gh/jerosoler/Drawflow/dist/drawflow.min.js"></script>
+    <style>
+        body { font-family: sans-serif; display: flex; height: 100vh; margin: 0; background-color: #f0f2f5; }
+        #sidebar { width: 250px; padding: 15px; background: #fff; border-right: 1px solid #ddd; display: flex; flex-direction: column; gap: 10px; }
+        .drag-drawflow { cursor: grab; background: #4CAF50; color: white; padding: 10px; border-radius: 5px; text-align: center; user-select: none; }
+        #drawflow { width: 100%; height: 100%; background: #f9f9f9; border: 1px solid #ccc; }
+        #controls { padding: 15px; background: #fff; border-top: 1px solid #ddd; }
+        .main-content { display: flex; flex-direction: column; width: calc(100% - 250px); }
+        #output img { max-width: 200px; max-height: 200px; margin-top: 10px; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <h3>Noduri Disponibile</h3>
+        <div class="drag-drawflow" draggable="true" ondragstart="event.dataTransfer.setData('node', 'import_local')">Import Local</div>
+        <div class="drag-drawflow" draggable="true" ondragstart="event.dataTransfer.setData('node', 'culling')">Culling (Select)</div>
+        <div class="drag-drawflow" draggable="true" ondragstart="event.dataTransfer.setData('node', 'style_transfer')">Style Transfer</div>
+        <div class="drag-drawflow" draggable="true" ondragstart="event.dataTransfer.setData('node', 'export_local')">Export Local</div>
+        <div class="drag-drawflow" style="background-color: #4285F4;" draggable="true" ondragstart="event.dataTransfer.setData('node', 'import_gdrive')">Import GDrive</div>
+    </div>
+    <div class="main-content">
+        <div id="drawflow"></div>
+        <div id="controls">
+            <input type="file" id="imageInput" accept="image/*">
+            <button id="processButton">Procesează Imagine</button>
+            <div id="output">
+                <h4>Rezultat:</h4>
+                <div id="imageResult"></div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const id = document.getElementById("drawflow");
+    const editor = new Drawflow(id);
+    editor.start();
+
+    // Register custom nodes
+    editor.registerNode('import_local', createNodeWithContent(`<strong>Import Local</strong>`), {}, {});
+    editor.registerNode('culling', createNodeWithContent(`<strong>Culling</strong><br/><span>Selectează cele mai bune poze</span>`), {}, {});
+    editor.registerNode('style_transfer', createNodeWithContent(`
+        <strong>Style Transfer</strong><br/>
+        <select onchange="updateNodeData(this)">
+            <option value="style1">Stil 1 (Artistic)</option>
+            <option value="style2">Stil 2 (Abstract)</option>
+            <option value="style3">Stil 3 (Modern)</option>
+        </select>
+    `), {}, {});
+    editor.registerNode('export_local', createNodeWithContent(`<strong>Export Local</strong>`), {}, {});
+    editor.registerNode('import_gdrive', createNodeWithContent(`<strong>Import GDrive</strong>`), {}, {});
+
+    function createNodeWithContent(content) {
+        const node = document.createElement("div");
+        node.innerHTML = content;
+        return node;
+    }
+    
+    // Function to update node data (e.g., for style selection)
+    window.updateNodeData = (element) => {
+        const nodeId = element.closest('.drawflow-node').id.split('-')[1];
+        editor.updateNodeDataFromId(nodeId, { style: element.value });
+    }
+    
+    // Drag and drop functionality
+    document.addEventListener("dragover", e => e.preventDefault());
+    document.addEventListener("drop", e => {
+        e.preventDefault();
+        if (e.target.id === 'drawflow') {
+            const nodeName = e.dataTransfer.getData('node');
+            const position = { x: e.clientX, y: e.clientY };
+            addNodeToDrawflow(nodeName, position.x, position.y);
+        }
+    });
+
+    function addNodeToDrawflow(name, pos_x, pos_y) {
+        pos_x = pos_x * ( editor.precanvas.clientWidth / (editor.precanvas.clientWidth * editor.zoom)) - (editor.precanvas.getBoundingClientRect().x * ( editor.precanvas.clientWidth / (editor.precanvas.clientWidth * editor.zoom)));
+        pos_y = pos_y * ( editor.precanvas.clientHeight / (editor.precanvas.clientHeight * editor.zoom)) - (editor.precanvas.getBoundingClientRect().y * ( editor.precanvas.clientHeight / (editor.precanvas.clientHeight * editor.zoom)));
+        
+        let data = {};
+        if (name === 'style_transfer') {
+            data = { style: 'style1' }; // Default style
+        }
+        
+        editor.addNode(name, 1, 1, pos_x, pos_y, name, data, name, 'html');
+    }
+
+    // Processing logic
+    document.getElementById('processButton').addEventListener('click', async () => {
+        const imageFile = document.getElementById('imageInput').files[0];
+        const workflow = editor.export();
+        
+        if (!imageFile || !workflow.drawflow.Home.data) {
+            alert("Te rog încarcă o imagine și creează un flux de lucru.");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('image', imageFile);
+        formData.append('workflow', JSON.stringify(workflow));
+        
+        document.getElementById('imageResult').innerHTML = "Se procesează...";
+
+        try {
+            const response = await fetch('http://127.0.0.1:5000/process', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) throw new Error('Network response was not ok.');
+
+            const imageBlob = await response.blob();
+            const imageUrl = URL.createObjectURL(imageBlob);
+            
+            document.getElementById('imageResult').innerHTML = `
+                <img src="${imageUrl}" alt="Processed Image">
+                <br>
+                <a href="${imageUrl}" download="processed_image.jpg">Descarcă Imaginea</a>
+            `;
+
+        } catch (error) {
+            console.error('Error processing image:', error);
+            document.getElementById('imageResult').innerHTML = "Eroare la procesare.";
+        }
+    });
+</script>
+</body>
+</html>
