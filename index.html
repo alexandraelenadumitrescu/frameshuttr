@@ -9,7 +9,7 @@
         body { font-family: sans-serif; display: flex; height: 100vh; margin: 0; background-color: #f0f2f5; }
         #sidebar { width: 250px; padding: 15px; background: #fff; border-right: 1px solid #ddd; display: flex; flex-direction: column; gap: 10px; }
         .drag-drawflow { cursor: grab; background: #4CAF50; color: white; padding: 10px; border-radius: 5px; text-align: center; user-select: none; }
-        #drawflow { width: 100%; height: 100%; background: #f9f9f9; border: 1px solid #ccc; }
+        #drawflow { position: relative; width: 100%; height: 100%; background: #f9f9f9; border: 1px solid #ccc; }
         #controls { padding: 15px; background: #fff; border-top: 1px solid #ddd; }
         .main-content { display: flex; flex-direction: column; width: calc(100% - 250px); }
         #output img { max-width: 200px; max-height: 200px; margin-top: 10px; border: 1px solid #ccc; }
@@ -37,11 +37,55 @@
     </div>
 
 <script>
-    const id = document.getElementById("drawflow");
-    const editor = new Drawflow(id);
+    const container = document.getElementById("drawflow");
+    const editor = new Drawflow(container);
     editor.start();
 
-    // Register custom nodes
+    // ------- START: COD CORECTAT PENTRU DRAG-AND-DROP -------
+    
+    // Prevenim comportamentul default al browser-ului pentru a permite drop-ul
+    container.addEventListener("dragover", e => {
+        e.preventDefault();
+    });
+
+    // Ascultăm evenimentul de drop direct pe containerul drawflow
+    container.addEventListener("drop", e => {
+        e.preventDefault();
+        const nodeName = e.dataTransfer.getData('node');
+        
+        // Calculăm poziția corectă a nodului relativ la canvas și zoom
+        const pos_x = e.clientX * (editor.precanvas.clientWidth / (editor.precanvas.clientWidth * editor.zoom)) - (editor.precanvas.getBoundingClientRect().x * (editor.precanvas.clientWidth / (editor.precanvas.clientWidth * editor.zoom)));
+        const pos_y = e.clientY * (editor.precanvas.clientHeight / (editor.precanvas.clientHeight * editor.zoom)) - (editor.precanvas.getBoundingClientRect().y * (editor.precanvas.clientHeight / (editor.precanvas.clientHeight * editor.zoom)));
+        
+        // Adăugăm nodul în editor
+        addNodeToDrawflow(nodeName, pos_x, pos_y);
+    });
+
+    // ------- END: COD CORECTAT PENTRU DRAG-AND-DROP -------
+
+    // Funcție ajutătoare pentru a crea conținutul HTML al nodului
+    function createNodeWithContent(content) {
+        const node = document.createElement("div");
+        node.innerHTML = content;
+        return node;
+    }
+
+    // Funcție pentru a actualiza datele unui nod (ex: stilul ales)
+    window.updateNodeData = (element) => {
+        const nodeId = element.closest('.drawflow-node').id.split('-')[1];
+        editor.updateNodeDataFromId(nodeId, { style: element.value });
+    }
+    
+    // Funcția care adaugă fizic nodul
+    function addNodeToDrawflow(name, pos_x, pos_y) {
+        let data = {};
+        if (name === 'style_transfer') {
+            data = { style: 'style1' }; // Setăm un stil default
+        }
+        editor.addNode(name, 1, 1, pos_x, pos_y, name, data, name, 'html');
+    }
+
+    // Înregistrăm tipurile de noduri
     editor.registerNode('import_local', createNodeWithContent(`<strong>Import Local</strong>`), {}, {});
     editor.registerNode('culling', createNodeWithContent(`<strong>Culling</strong><br/><span>Selectează cele mai bune poze</span>`), {}, {});
     editor.registerNode('style_transfer', createNodeWithContent(`
@@ -55,42 +99,7 @@
     editor.registerNode('export_local', createNodeWithContent(`<strong>Export Local</strong>`), {}, {});
     editor.registerNode('import_gdrive', createNodeWithContent(`<strong>Import GDrive</strong>`), {}, {});
 
-    function createNodeWithContent(content) {
-        const node = document.createElement("div");
-        node.innerHTML = content;
-        return node;
-    }
-    
-    // Function to update node data (e.g., for style selection)
-    window.updateNodeData = (element) => {
-        const nodeId = element.closest('.drawflow-node').id.split('-')[1];
-        editor.updateNodeDataFromId(nodeId, { style: element.value });
-    }
-    
-    // Drag and drop functionality
-    document.addEventListener("dragover", e => e.preventDefault());
-    document.addEventListener("drop", e => {
-        e.preventDefault();
-        if (e.target.id === 'drawflow') {
-            const nodeName = e.dataTransfer.getData('node');
-            const position = { x: e.clientX, y: e.clientY };
-            addNodeToDrawflow(nodeName, position.x, position.y);
-        }
-    });
-
-    function addNodeToDrawflow(name, pos_x, pos_y) {
-        pos_x = pos_x * ( editor.precanvas.clientWidth / (editor.precanvas.clientWidth * editor.zoom)) - (editor.precanvas.getBoundingClientRect().x * ( editor.precanvas.clientWidth / (editor.precanvas.clientWidth * editor.zoom)));
-        pos_y = pos_y * ( editor.precanvas.clientHeight / (editor.precanvas.clientHeight * editor.zoom)) - (editor.precanvas.getBoundingClientRect().y * ( editor.precanvas.clientHeight / (editor.precanvas.clientHeight * editor.zoom)));
-        
-        let data = {};
-        if (name === 'style_transfer') {
-            data = { style: 'style1' }; // Default style
-        }
-        
-        editor.addNode(name, 1, 1, pos_x, pos_y, name, data, name, 'html');
-    }
-
-    // Processing logic
+    // Logica pentru procesarea imaginii (rămâne neschimbată)
     document.getElementById('processButton').addEventListener('click', async () => {
         const imageFile = document.getElementById('imageInput').files[0];
         const workflow = editor.export();
@@ -112,7 +121,7 @@
                 body: formData
             });
 
-            if (!response.ok) throw new Error('Network response was not ok.');
+            if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
 
             const imageBlob = await response.blob();
             const imageUrl = URL.createObjectURL(imageBlob);
