@@ -1,12 +1,19 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, render_template
 from flask_cors import CORS
 from PIL import Image, ImageEnhance
 import io
 import json
 import base64
 
-app = Flask(__name__)#app object 
+app = Flask(__name__
+            ,template_folder='../frontend'
+            
+            
+            )#app object 
 CORS(app)  # leaga fe de be
+@app.route('/')
+def index():
+    return render_template('index.html')
 
 # route 1: Health check
 @app.route('/health', methods=['GET'])
