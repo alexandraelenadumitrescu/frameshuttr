@@ -15,6 +15,10 @@ CORS(app)  # leaga fe de be
 def index():
     return render_template('index.html')
 
+@app.route('/minim')
+def minim():
+    return render_template('minim.html')
+
 # route 1: Health check
 @app.route('/health', methods=['GET'])
 def health():
