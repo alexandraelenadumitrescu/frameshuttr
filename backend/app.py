@@ -67,7 +67,7 @@ def testplan():
     plan_json = request.form.get('plan', '[]')
     plan = json.loads(plan_json)
 
-    printf(f"am primit planul: {plan}")
+    print(f"am primit planul: {plan}")
 
     #executam fiecare pas din plan
     for step in plan:
