@@ -18,6 +18,9 @@ def index():
 @app.route('/minim')
 def minim():
     return render_template('minim.html')
+@app.route('/minimform')
+def minimform():
+    return render_template('minimform.html')
 
 # route 1: Health check
 @app.route('/health', methods=['GET'])
@@ -53,6 +56,44 @@ def test():
 
     img_base64 = base64.b64encode(buffer.read()).decode()  
     return jsonify({'status':'success', 'image': f'data:image/jpeg;base64,{img_base64}'})
+
+@app.route('/testplan', methods=['POST'])
+def testplan():
+    image_file = request.files['image']
+    image=Image.open(image_file).convert("RGB")#intoarce o copie a imaginii in RGB
+
+    #in loc de parametrii simpli, primim un plan de procesare
+    plan_json = request.form.get('plan', '[]')
+    plan = json.loads(plan_json)
+
+    printf(f"am primit planul: {plan}")
+
+    #executam fiecare pas din plan
+    for step in plan:
+        operation=step['operation']
+        value=step['value']
+
+        if operation=='brightness':
+            enhancer = ImageEnhance.Brightness(image)
+            image = enhancer.enhance(float(value))
+        elif operation=='contrast':
+            enhancer = ImageEnhance.Contrast(image)
+            image = enhancer.enhance(float(value))
+        elif operation=='saturation':
+            enhancer = ImageEnhance.Color(image)
+            image = enhancer.enhance(float(value))
+
+
+    
+
+    #trimitem inapoi imaginea procesata
+    buffer=io.BytesIO()
+    image.save(buffer, format="JPEG",quality=90)  
+    buffer.seek(0)
+
+    img_base64 = base64.b64encode(buffer.read()).decode()  
+    return jsonify({'status':'success', 'image': f'data:image/jpeg;base64,{img_base64}'})
+    return jsonify({'status':'success', 'received': data})
 
 
 # #route 2: Process image
