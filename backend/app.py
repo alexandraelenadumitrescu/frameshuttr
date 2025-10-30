@@ -18,6 +18,7 @@ def index():
 @app.route('/minim')
 def minim():
     return render_template('minim.html')
+
 @app.route('/minimform')
 def minimform():
     return render_template('minimform.html')
