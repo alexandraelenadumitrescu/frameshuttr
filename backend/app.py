@@ -4,6 +4,8 @@ from PIL import Image, ImageEnhance
 import io
 import json
 import base64
+import cv2
+import numpy as np
 
 app = Flask(__name__
             ,template_folder='../frontend'
@@ -67,7 +69,7 @@ def testplan():
     plan_json = request.form.get('plan', '[]')
     plan = json.loads(plan_json)
 
-    print(f"am primit planul: {plan}")
+    print(f"\nam primit planul: {plan}")
 
     #executam fiecare pas din plan
     for step in plan:
@@ -83,6 +85,12 @@ def testplan():
         elif operation=='saturation':
             enhancer = ImageEnhance.Color(image)
             image = enhancer.enhance(float(value))
+        elif operation == 'ai_edges':
+            img_array = np.array(image)
+            gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+            edges = cv2.Canny(gray, 100, 200)
+            edges_rgb = cv2.cvtColor(edges, cv2.COLOR_GRAY2RGB)
+            image = Image.fromarray(edges_rgb)
 
 
     
